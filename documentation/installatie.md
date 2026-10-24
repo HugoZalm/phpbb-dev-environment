@@ -75,23 +75,30 @@ Op macOS of Linux gebruik je dezelfde commando's in een terminal.
 Na het klonen zie je ongeveer deze structuur:
 
 ```text
-phpbb-dev-environment/
-|-- .gitignore
-|-- Dockerfile
-|-- compose.yaml
-|-- documentation/
-|   `-- installatie.md
-|-- extensions/
-|   `-- hugozalm/          <- maak je zelf aan
-`-- phpbb/                 <- maak je zelf aan en vul je met phpBB
+|--extensions               <- maak je zelf en vul je aan met extenties
+|--phpbb-dev-environment/
+|  -- .env
+|  -- .gitignore
+|  -- Dockerfile
+|  -- compose.yaml
+|  -- documentation/
+|     -- installatie.md
+|     -- installatie.pdf
+|     -- installatie.epub
+|     -- Dockerfile
+|     -- build.ps1
+|     -- pdf-header.tex
+|  -- phpbb/                 <- maak je zelf aan en vul je met phpBB
 ```
 
-De mappen `phpbb/` en `extensions/hugozalm/` zitten bewust niet in de repository. phpBB is software van derden en je extensiecode staat lokaal in de map `extensions/`. De `.gitignore` zorgt ervoor dat Git deze mappen niet meeneemt.
+De map `phpbb/` en `extensions` zitten bewust niet in de repository. phpBB is software van derden en je extensiecode staat lokaal in de map `extensions/`. De `.gitignore` zorgt ervoor dat Git de map phpbb niet meeneemt.
 
-Maak de map voor je extensies alvast aan:
+
+# extension-map
+Maak de map voor je extensies aan vanuit de map boven phpbb-dev-environment:
 
 ```powershell
-New-Item -ItemType Directory -Force -Path .\extensions\hugozalm
+New-Item -ItemType Directory -Force -Path .\extensions
 ```
 
 Op macOS of Linux:
@@ -99,6 +106,8 @@ Op macOS of Linux:
 ```bash
 mkdir -p extensions/hugozalm
 ```
+
+> **Ter info:**  Plaats je de map op een andere locatie, wijzig dan de `EXTENSIONS_PATH` variabele in `.env`-file. Je kan relatieve en absolute padnamen gebruiken (bijvoorbeeld `EXTENSIONS_PATH=C:\Users\HugoZalm\Documents\extensions`)
 
 # phpBB downloaden
 
@@ -278,10 +287,10 @@ De extensie komt dus in phpBB terecht als:
 ext/hugozalm/hello/
 ```
 
-In dit project staat de broncode echter niet in `phpbb/ext/`, maar in de map `extensions/hugozalm/` op je computer. `compose.yaml` koppelt die map aan de container:
+In dit project staat de broncode echter niet in `phpbb/ext/`, maar in de map `extensions/hugozalm/` op je computer. `compose.yaml` koppelt die map aan de container via een tussenmap: ext-external en een script (in comand). Dit zorgt er voor dat de originele extenties in /var/www/html/ext/ niet overschreven worden of verdwijnen:
 
 ```text
-extensions/hugozalm/  ->  /var/www/html/ext/hugozalm/
+extensions/  ->  /var/www/html/ext-external/
 ```
 
 Daardoor werk je in je eigen editor en ziet phpBB de bestanden direct. Je hoeft na een codewijziging dus niet opnieuw te bouwen.
@@ -309,88 +318,21 @@ Controleer vanuit de container of de map zichtbaar is:
 docker compose exec web ls ext/hugozalm
 ```
 
+> **PS: ** In dit voorbeeld gebruiken we `hugozalm` als vendornaam en `hello` als extensie-naam. Je kan meerdere vendornamen met meerdere extenties aan de extension-map toevoegen. Die worden dan allemall automatisch geladen
+
 # Extensies in aparte Git-repositories beheren
 
-De map `extensions/` is uitgesloten van de Git-repository van deze ontwikkelomgeving (zie `.gitignore`). Dat betekent dat elke map in `extensions/` zonder probleem zijn eigen Git-repository kan hebben. De ontwikkelomgeving blijft dan los van je extensierepositories, terwijl je ze gewoon in dezelfde mappenstructuur kunt houden.
+Door de map `extensions/` buiten phpBB-dev-environment (het git-project) te plaatsen, kan elke map in `extensions/` zonder probleem zijn eigen Git-repository hebben. De ontwikkelomgeving blijft dan los van je extensierepositories.
 
 ## Waarom dit handig is
 
 - **Losse ontwikkeling**: je kunt je extensie in een apart repository ontwikkelen, met eigen branches, commits en releases.
 - **Makkelijk delen**: anderen kunnen je extensie clonen zonder dat ze de hele ontwikkelomgeving nodig hebben.
-- **Meerdere extensies**: je kunt voor `extensions/hugozalm/extensionA`, `extensions/hugozalm/extensionB`, etc. allemaal een eigen remote koppelen.
-- **Geen conflicten**: Git in de hoofdmappen herkent geneste `.git`-mappen niet als bestanden van het bovenliggende repository.
-
-## Mogelijke benaderingen
-
-| Benadering | Wanneer te gebruiken | Opmerking |
-| --- | --- | --- |
-| **Onafhankelijke repositories (aanbevolen)** | Tijdens actieve ontwikkeling van extensies. | Simpelst. Elk extensiepad heeft zijn eigen `.git/`. De hoofdrepo negeert ze volledig. |
-| **Git submodules** | Als je een vaste omgeving wilt vastleggen met exacte commits van extensies. | Houdt via het hoofdrepo bij welke commit van elke extensie wordt gebruikt. Vereist extra commando's (`git submodule update --init`). |
-| **Git subtrees** | Als je alles in één repository wilt houden, maar nog wel naar een externe repo kunt pushen. | Minder gebruikelijk voor deze opzet, moeilijker om terug te pushen naar de extensierepo. |
-
-Voor deze ontwikkelomgeving is het gebruik van **onafhankelijke repositories** het meest praktisch.
-
-## Demo: `hello` als apart Git-repository
-
-Laten we als voorbeeld de bestaande extensie `extensions/hugozalm/hello` omzetten naar een eigen Git-repository. Vanuit de hoofdmap van het project:
-
-### 1) Ga naar de extensiemap
-
-Op Windows (PowerShell):
-
-```powershell
-cd .\extensions\hugozalm\hello
-```
-
-Op macOS of Linux:
-
-```bash
-cd extensions/hugozalm/hello
-```
-
-### 2) Initialiseer een eigen repository
-
-```bash
-git init
-```
-
-### 3) Voeg bestanden toe en commit
-
-```bash
-git add .
-git commit -m "Init hello extension"
-```
-
-Stel eventueel de standaardbranch in op `main`:
-
-```bash
-git branch -M main
-```
-
-### 4) Koppel aan een remote repository
-
-Maak eerst een leeg repository aan op GitHub, GitLab of een andere Git-host (bijvoorbeeld `https://github.com/HugoZalm/phpbb-ext-hello.git`). Voeg deze daarna toe als remote:
-
-```bash
-git remote add origin https://github.com/HugoZalm/phpbb-ext-hello.git
-git push -u origin main
-```
-
-Vanaf nu kun je vanuit deze map gewoon `git add`, `git commit`, `git push`, `git pull`, etc. gebruiken. Vanuit de hoofdmap van de ontwikkelomgeving wordt `extensions/hugozalm/hello` volledig genegeerd, dus `git status` daar toont niets van deze extensie.
-
-### 5) Controleren dat het losstaat
-
-Open een nieuwe terminal in de hoofdmap van het project en controleer:
-
-```powershell
-git -C .\extensions\hugozalm\hello status
-```
-
-Of gewoon `git status` terwijl je in `extensions/hugozalm/hello/` staat. Beide tonen de status van de extensierepo, los van het ontwikkelomgeving-repo.
+- **Meerdere extensies**: je kunt voor `extensions/vendor1/extensionA`, `extensions/vendor1/extensionB`, `extensions/vendor2/extensionA`, etc. allemaal een eigen remote koppelen.
 
 ## Een bestaande extensie clonen direct in de juiste map
 
-Als je een al bestaande extensierepo wilt gebruiken, kun je deze direct op de juiste plek clonen. Zorg ervoor dat je de mapstructuur respecteert: de extensie moet eindigen in `extensions/hugozalm/<extensienaam>/` zodat hij gekoppeld wordt aan `ext/hugozalm/<extensienaam>/` in de container.
+Als je een al bestaande extensierepo wilt gebruiken, kun je deze direct op de juiste plek clonen. Zorg ervoor dat je de mapstructuur respecteert: de extensie moet eindigen in `extensions/<vendornaam>/<extensienaam>/` zodat hij gekoppeld wordt aan `ext/<vendornaam>/<extensienaam>/` in de container.
 
 Verwijder eerst eventueel een bestaande lege map (indien aanwezig):
 
@@ -407,13 +349,6 @@ git clone https://github.com/jouw-gebruiker/phpbb-ext-mijn-extensie.git extensio
 ```
 
 Nadat je gekloond hebt, kun je de extensie direct inschakelen in het forum zoals beschreven in het volgende hoofdstuk. De koppeling via `compose.yaml` werkt gewoon, ongeacht of er een `.git`-map in de extensie zit.
-
-## Belangrijke opmerkingen
-
-- **Geen wijzigingen aan `.gitignore` nodig**: `extensions/hugozalm/` is al genegeerd. Geneste Git-repositories worden daardoor niet getrackt door de hoofdrepo.
-- **Container blijft werken**: Docker mount alles in `extensions/hugozalm/` naar de container. Een eigen `.git`-map heeft geen invloed op phpBB of Docker.
-- **Onafhankelijke geschiedenis**: Commits, tags en branches van extensies staan alleen in die extensierepo. Je hoofdrepo heeft geen kennis van de versie van je extensie.
-- **Submodules optioneel**: Wil je later toch vastleggen welke extensiecommits bij deze ontwikkelomgeving horen, kun je overstappen op Git submodules. Dat is echter niet verplicht voor lokaal ontwikkelen.
 
 # Je eerste extensie: Hello
 
@@ -1247,6 +1182,55 @@ Cache legen via de commandoregel:
 ```powershell
 docker compose exec -T web php bin/phpbbcli.php cache:purge
 ```
+
+# Code bewaren in een git-repo
+Zoals gezegd, kan je elke extensie in een eigen git-repo bewaren. Dit doe je zo:
+
+Vanuit de hoofdmap van het project:
+
+### 1) Ga naar de extensiemap
+
+Op Windows (PowerShell):
+
+```powershell
+cd .\extensions\hugozalm\hello
+```
+
+Op macOS of Linux:
+
+```bash
+cd extensions/hugozalm/hello
+```
+
+### 2) Initialiseer een eigen repository
+
+```bash
+git init
+```
+
+### 3) Voeg bestanden toe en commit
+
+```bash
+git add .
+git commit -m "Init hello extension"
+```
+
+Stel eventueel de standaardbranch in op `main`:
+
+```bash
+git branch -M main
+```
+
+### 4) Koppel aan een remote repository
+
+Maak eerst een leeg repository aan op GitHub, GitLab of een andere Git-host (bijvoorbeeld `https://github.com/HugoZalm/phpbb-ext-hello.git`). Voeg deze daarna toe als remote:
+
+```bash
+git remote add origin https://github.com/HugoZalm/phpbb-ext-hello.git
+git push -u origin main
+```
+
+Vanaf nu kun je vanuit deze map gewoon `git add`, `git commit`, `git push`, `git pull`, etc. gebruiken. Vanuit de hoofdmap van de ontwikkelomgeving wordt `extensions/hugozalm/hello` volledig genegeerd, dus `git status` daar toont niets van deze extensie.
 
 # Verpakken en uitrollen
 

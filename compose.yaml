@@ -6,7 +6,23 @@ services:
       - "8080:80"
     volumes:
       - ./phpbb:/var/www/html
-      - ./extensions/hugozalm:/var/www/html/ext/hugozalm
+      - ${EXTENSIONS_PATH:-../extensions}:/var/www/html/ext-external
+    command: >
+      bash -c "
+        if [ -d /var/www/html/ext-external ]; then
+          for vendor in /var/www/html/ext-external/*; do
+            [ -d \"$$vendor\" ] || continue
+            vendorname=$$(basename \"$$vendor\")
+            for ext in \"$$vendor\"/*; do
+              [ -d \"$$ext\" ] || continue
+              extname=$$(basename \"$$ext\")
+              mkdir -p /var/www/html/ext/$$vendorname
+              ln -sf \"$$ext\" /var/www/html/ext/$$vendorname/$$extname
+            done
+          done
+        fi
+        apache2-foreground
+      "
     depends_on:
       db:
         condition: service_healthy

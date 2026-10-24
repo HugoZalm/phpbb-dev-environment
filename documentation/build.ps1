@@ -1,5 +1,6 @@
 [CmdletBinding()]
 param(
+    [string]$Source = 'installatie.md',
     [string]$ImageTag = 'phpbb-docs-pandoc:3.11',
     [ValidateSet('All', 'Pdf', 'Epub')]
     [string]$Target = 'All'
@@ -8,11 +9,19 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $docs = $PSScriptRoot
-$source = Join-Path $docs 'installatie.md'
-
-if (-not (Test-Path -LiteralPath $source)) {
-    throw "Bronbestand niet gevonden: $source"
+# Docker mount alleen de documentatiemap, dus het bronbestand moet daar
+# rechtstreeks in staan.
+$sourceName = Split-Path -Path $Source -Leaf
+if ($sourceName -ne $Source) {
+    throw "Geef alleen een bestandsnaam op uit de documentatiemap, geen pad: $Source"
 }
+
+$sourcePath = Join-Path $docs $sourceName
+if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf)) {
+    throw "Bronbestand niet gevonden: $sourcePath"
+}
+
+$base = [System.IO.Path]::GetFileNameWithoutExtension($sourceName)
 
 docker info *> $null
 if ($LASTEXITCODE -ne 0) {
@@ -35,8 +44,8 @@ $commonArgs = @(
 )
 
 $pdfArgs = @(
-    'installatie.md',
-    '--output', 'installatie.pdf',
+    $sourceName,
+    '--output', "$base.pdf",
     '--pdf-engine=xelatex',
     '--toc',
     '--toc-depth=2',
@@ -56,8 +65,8 @@ $pdfArgs = @(
 )
 
 $epubArgs = @(
-    'installatie.md',
-    '--output', 'installatie.epub',
+    $sourceName,
+    '--output', "$base.epub",
     '--toc',
     '--toc-depth=2',
     '--number-sections',
@@ -74,7 +83,7 @@ if ($Target -in @('All', 'Pdf'))
         throw "PDF-generatie mislukt (docker exitcode $LASTEXITCODE)."
     }
 
-    $output = Join-Path $docs 'installatie.pdf'
+    $output = Join-Path $docs "$base.pdf"
     if (-not (Test-Path -LiteralPath $output) -or (Get-Item -LiteralPath $output).Length -eq 0) {
         throw "PDF is niet aangemaakt: $output"
     }
@@ -91,7 +100,7 @@ if ($Target -in @('All', 'Epub'))
         throw "EPUB-generatie mislukt (docker exitcode $LASTEXITCODE)."
     }
 
-    $output = Join-Path $docs 'installatie.epub'
+    $output = Join-Path $docs "$base.epub"
     if (-not (Test-Path -LiteralPath $output) -or (Get-Item -LiteralPath $output).Length -eq 0) {
         throw "EPUB is niet aangemaakt: $output"
     }
