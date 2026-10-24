@@ -1,0 +1,29 @@
+services:
+  web:
+    build: .
+    ports:
+      - "8080:80"
+    volumes:
+      - ./phpbb:/var/www/html
+      - ${EXTENSIONS_PATH}:/var/www/html/ext
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: mariadb:10.11
+    environment:
+      MARIADB_DATABASE: phpbb
+      MARIADB_USER: phpbb
+      MARIADB_PASSWORD: devpassword
+      MARIADB_ROOT_PASSWORD: devrootpassword
+    volumes:
+      - phpBB_dev_db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  phpBB_dev_db_data:
