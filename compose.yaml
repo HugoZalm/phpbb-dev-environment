@@ -17,7 +17,9 @@ services:
               [ -d \"$$ext\" ] || continue
               extname=$$(basename \"$$ext\")
               mkdir -p /var/www/html/ext/$$vendorname
-              ln -sf \"$$ext\" /var/www/html/ext/$$vendorname/$$extname
+              target=/var/www/html/ext/$$vendorname/$$extname
+              if [ -d \"$$target\" ] && [ ! -L \"$$target\" ]; then echo \"Replacing real directory $$target with a symlink\"; rm -rf \"$$target\"; fi
+              ln -sfn \"$$ext\" \"$$target\"
             done
           done
         fi
